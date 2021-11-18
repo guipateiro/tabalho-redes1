@@ -384,3 +384,67 @@ void linha(int *seq, int soquete){
 
 
 }	
+
+
+void edit(int *seq, int soquete){
+
+	enviarmensagemfacil(soquete,SERVER,CLIENT,0,seq,EDIT,NULL);
+
+	char buffer[500];
+	char content[500];
+	char imput[500];
+	unsigned int linhas_inicio, linhas_fim;
+	scanf("%u",&linhas_inicio);
+	linhas_fim = linhas_inicio;
+
+	unsigned char buffer_linhas[9];
+	for (int i = 0; i < 4; i++){
+		buffer_linhas[3-i] = linhas_inicio >> (8*i);
+		buffer_linhas[8-i] = linhas_fim >> (8*i);
+		printf("%x, %x\n",buffer_linhas[3-i],buffer_linhas[8-i]);
+	}
+	buffer_linhas[4] = ' ';
+	buffer_linhas[9] = '\0';
+
+	for (int i = 0; i < 9; i++){
+		printf("%x",buffer_linhas[i]);
+	}
+   
+	enviarmensagemfacil(soquete,SERVER,CLIENT,9,seq,LIN,buffer_linhas);
+
+	scanf("%[^\n]",buffer);
+	int tamanho = strlen(buffer);
+	int contmsg = (tamanho/15);
+	int restomsg = tamanho % 15;
+
+	for (int i = 0; i < contmsg; i++){
+		char data[15] = "";
+		for (int j = 0; j < 15; j++){
+			data[j] = buffer[(15*i)+j];
+		}
+		data[15] = '\0';
+		printf("I: %i data:%s\n",i, data);
+		enviarmensagemfacil(soquete,SERVER,CLIENT,15,seq,LINHA,data);
+	}
+	char data[15] = "";
+	for (int j = 0; j < restomsg; j++){
+		data[j] = buffer[15*contmsg+j];
+	}
+	printf("data:%s \n",data);
+	enviarmensagemfacil(soquete,SERVER,CLIENT,restomsg,seq,LINHA,data);
+
+	enviaEOT(SERVER,CLIENT,seq,soquete);
+
+	kermitHuman package;
+	iniciaPackage(&package);
+	if(receivePackage(&package,CLIENT, soquete) < 0){
+		exit(-1);
+	}		
+    if(ehPack(&package, ERROR)){
+		printError(&package);
+		incrementaSeq(seq);
+    }
+	resetPackage(&package);
+
+
+}	

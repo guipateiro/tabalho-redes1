@@ -50,7 +50,7 @@ int main()
       linha(&seq, soquete);
     } 
     else if (strncmp(comando, "edit", 4) == 0){
-      //comando_edit(&seq, soquete);
+      edit(&seq, soquete);
     } 
     else if (strncmp(comando, "exit", 4) == 0){
       printf("Finalizando client e server\n");

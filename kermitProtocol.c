@@ -72,7 +72,7 @@ int sendPackage(kermitHuman *package, int soquete)
   fd.fd = soquete;
   fd.events = POLLIN;
 
-  if( poll(&fd, 1, 1) )
+  if( poll(&fd, 1, 5) )
     read(soquete, buffer, TAM_PACKAGE);
 
   //#ifdef DEBUG
@@ -158,8 +158,8 @@ int receivePackage(kermitHuman *package, int destEsp, int soquete)
   if( geraPar(packageBit, package->tam) != package->par )
     return 1;
 
- // if( poll(&fd, 1, 1) )
-    //read(soquete, buffer, TAM_PACKAGE);
+ if( poll(&fd, 1, 1) )
+    read(soquete, buffer, TAM_PACKAGE);
 
   return 0;
 }

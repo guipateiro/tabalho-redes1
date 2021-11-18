@@ -47,7 +47,7 @@ int main()
       break;
        
       case 5:
-        //comando_edit(&package, &seq, soquete);
+        comando_edit(&package, &seq, soquete);
       break;
        
       case 6:

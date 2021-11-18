@@ -28,4 +28,6 @@ void linhas(int *seq, int soquete);
 
 void linha(int *seq, int soquete);
 
+void edit(int *seq, int soquete);
+
 #endif

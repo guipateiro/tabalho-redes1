@@ -73,9 +73,10 @@ void comando_cd(kermitHuman *package, int *seq, int soquete){
 
 // Comando ls - server side
 // Executa ls no server
-void comando_ls(kermitHuman *package, int *seq, int soquete){  
-    kermitHuman packageSend, packageRec;
+void comando_ls(kermitHuman *package, int *seq, int soquete){   
+
     sendACK(package->orig, package->dest, seq, soquete);
+
     char diretorio[TAM_DIRETORIO];
     pwd(diretorio);
 
@@ -440,188 +441,116 @@ void comando_linha(kermitHuman *package, int *seq, int soquete){
 
     incrementaSeq(seq);
 
-    // Libera memória
-    //resetPackage(&packageSend);
-    //resetPackage(&packageRec);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
 
 // Comando edit - server side
 // troca a linha <numero_linha> do arquivo <nome_arq>, que está no servidor, pelo texto <NOVO_TEXTO> que deve ser digitado entre aspas.
-/*void comando_edit(kermitHuman *package, int *seq, int soquete)
-{
-  kermitHuman packageRec;
+void comando_edit(kermitHuman *package, int *seq, int soquete){
 
-  FILE *arquivo; 
-  tad_texto buffer; 
-  
-  // abre <ARQUIVO> no servidor
-  arquivo = fopen((char*) package->data, "r");
-  if (arquivo == NULL){
-    sendError(package->orig, package->dest, seq, package->tipo, errno, soquete);
-    return;
-  }  
+    sendACK(package->orig, package->dest, seq, soquete);
 
-  // aloca o arquivo de texto na memória
-  if (!aloca_arq(arquivo, &buffer)){
-    sendError(package->orig, package->dest, seq, package->tipo, -2, soquete);
-    return;
-  }
+    resetPackage(package);
+    if( receivePackage(package, 2, soquete) < 0 )
+        exit(-1);
 
-  fclose(arquivo);
-
-  sendACK(package->orig, package->dest, seq, soquete);
-
-  int retorno;
-
-  iniciaPackage(&packageRec);
-  // espera receber o número da linha
-  while( !ehPack(&packageRec, LINE_NUMBER) )
-  {
-    resetPackage(&packageRec);
-
-    // espera receber pacote
-    retorno = receivePackage(&packageRec, SERVER, soquete);
-    if( retorno == -1 ){
-      exit(-1);
+    FILE *arquivo;  
+    unsigned int linha_inicio = 0;
+    unsigned int linha_fim = 0;
+    for (int i = 0; i < 4; i++){
+        linha_inicio += (unsigned int) (package->data[i] << (8*(3-i)));
+        linha_fim += (unsigned int) (package->data[i+5] << (8*(3-i)));
     }
 
-    // se o retorno for timeout, erro de paridade
-    // ou se o pacote for NACK, envia o pacote novamente
-    if( (retorno > 0) || ehPack(&packageRec, NACK) ){
-      sendACK(package->orig, package->dest, seq, soquete);
+    sendACK(package->orig, package->dest, seq, soquete);
+
+    resetPackage(package);
+    if( receivePackage(package, 2, soquete) < 0 )
+        exit(-1);
+    char buffer[500] = "";
+    char imput[500] = "";
+    char content[500] = "";
+    for (int i = 0; i < package->tam; i++){
+        buffer[i] = package->data[i];
     }
-    
-  }
+    int contador = package->tam;
+    //printf("contador = %i\n",contador );
+    sendACK(package->orig, package->dest, seq, soquete);
 
-  unsigned int linha;
-  // pega bytes da esquerda e direita e transforma em unsigned int
-  linha = (unsigned int) ((packageRec.data[0] << 8) | (packageRec.data[1]));
+    while( !ehPack(package, EOT)){
+        resetPackage(package);
+        if( receivePackage(package, 2, soquete) < 0 )
+            exit(-1);
 
-  // se a linha for menor que 1 ou maior que o total do arquivo, ela não existe
-  if( (linha < 1) || (linha > buffer.num_linhas))
-  {
-    sendError(package->orig, package->dest, seq, package->tipo, -1, soquete);
-    // Libera memória
-    resetPackage(&packageRec);
-    return;
-  }
-
-  sendACK(package->orig, package->dest, seq, soquete);
-
-  // MODIFICAR O ARQUIVO DE TEXTO
-
-  // seta sequencia esperada e incrementa
-  int seqEsperada = packageRec.seq;
-  incrementaSeq(&seqEsperada);  
-
-  // tamanho da linha
-  int tam = 0;  
-
-  // libera espaço na memória referente a linha
-  free(buffer.linhas[linha-1]);
-  buffer.linhas[linha-1] = NULL;
-
-  // espera receber dados, parar quando receber EOT  
-  resetPackage(&packageRec);
-  while( !ehPack(&packageRec, EOT) )
-  {
-    resetPackage(&packageRec);
-
-    retorno = receivePackage(&packageRec, SERVER, soquete);
-    if( retorno == -1 ){
-      exit(-1);
-    } else if( retorno > 0 ){ 
-      // caso seja timeout ou erro na paridade, envia NACK
-      sendNACK(packageRec.orig, packageRec.dest, seq, soquete);
-    } else {      
-      // verifica se é pacote tipo conteúdo arquivo
-      if( ehPack(&packageRec, FILE_CONTENT) )
-      {
-        // verifica a sequência 
-        if( packageRec.seq == seqEsperada )
-        { 
-          // realoca a linha para escrever novos dados
-          buffer.linhas[linha-1] = (unsigned char *) realloc(buffer.linhas[linha-1], tam + packageRec.tam );
-          memcpy(buffer.linhas[linha-1]+tam, packageRec.data, packageRec.tam);
-          tam += packageRec.tam;
-
-          sendACK(packageRec.orig, packageRec.dest, seq, soquete);
-
-          incrementaSeq(&seqEsperada);
-        } else {
-          sendNACK(packageRec.orig, packageRec.dest, seq, soquete);
+        for (int i = 0; i < package->tam; i++){
+            buffer[contador+i] = package->data[i];
         }
-      }
+        contador += package->tam;
+        //printf("contador = %i\n",contador );
+        sendACK(package->orig, package->dest, seq, soquete);
+    }    
+    printf("diretorio a ser trocado %s >\n",buffer );
+
+    //scanf("%[^\n]",imput);
+    char c;
+    int l = 0;
+    while(buffer[l] != '\"'){
+        imput[l] = buffer[l];
+        l++;
+    }
+    l++;
+    int k = 0;
+    while(buffer[l] != '\"'){
+        content[k] = buffer[l];
+        l++;
+        k++;
+    }
+    content[k] = '\n';
+    printf("[%s] %s\n", imput, content );
+    // abre <ARQUIVO> no servidor
+
+    arquivo = fopen("teste", "r");
+    if (arquivo == NULL){
+        sendError(package->orig, package->dest, seq, package->tipo, errno, soquete);
+        return;
     }
     
-  }
+    char **linhas;
+    size_t size = 20;
+    linhas = malloc(1000 * sizeof(char*));
+    for (int i = 0; i < 1000; i++){
+        linhas[i] = malloc(size * sizeof(char));
+    }
 
-  buffer.linhas[linha-1][tam] = '\n';
-
-  sendACK(packageRec.orig, packageRec.dest, seq, soquete);
-
-  // reescreve ARQUIVO
-  arquivo = fopen((char*) package->data, "w");
-
-  for(int i = 0; i < buffer.num_linhas; i++)
-  {
-    fprintf(arquivo, "%s", buffer.linhas[i]);
-    free(buffer.linhas[i]);
-    buffer.linhas[i] = NULL;
-  }
-  free(buffer.linhas);
-  buffer.linhas = NULL;
-  fclose(arquivo);
-
-  // Libera memória
-  resetPackage(&packageRec);
-
-}*/
+    size_t tamline;
+    int i = 1; 
+    while (getline(&linhas[i], &size, arquivo) != -1){
+        printf("%s", linhas[i]);
+        i++;
+    }
+    printf("iniciar substituição\n");
+    printf("pelo amor de deus [%lu] %s",strlen(content),linhas[linha_inicio]);
+    if(linha_inicio < i){
+        free (linhas[linha_inicio]);
+        linhas[linha_inicio] = malloc((strlen(content)+2) * sizeof(char));
+        if (linhas[linha_inicio] == NULL){
+            sendError(package->orig, package->dest, seq, package->tipo, 1 /*errno*/, soquete);
+            return;
+        }
+        strcpy(linhas[linha_inicio], content);
+    }
+    else if(linha_inicio == i){
+        linhas[linha_inicio] = malloc((strlen(content)+2) * sizeof(char));
+        if (linhas[linha_inicio] == NULL){
+            sendError(package->orig, package->dest, seq, package->tipo, 1 /*errno*/, soquete);
+            return;
+        }
+        strcpy(linhas[linha_inicio], content);
+    }
+    printf("pelo amor de deus [%lu] %s",strlen(content),linhas[linha_inicio]);
+    for (int k = 0; k <= i; k++){
+        printf("%s", linhas[k]);
+    }
+}
