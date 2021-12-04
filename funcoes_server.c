@@ -5,77 +5,48 @@
 #include <errno.h>
 #include <dirent.h>         
 #include "ConexaoRawSocket.h"
-#include "kermitProtocol.h"
+#include "protocolo.h"
 #include "funcoes_server.h"
-
-#define CD 0
-#define LS 1
-#define VER 2
-#define LINHA 3
-#define LINHAS 4
-#define EDIT 5
-#define COMPILAR 6
-#define ACK 8
-#define NACK 9 
-#define LIN 10
-#define CONLS 11
-#define ARQ 12
-#define EOT 13
-#define ERRO 15
-#define TAM_DIRETORIO 150
-
 
 void pwd(char* resposta){
     getcwd(resposta,TAM_DIRETORIO*sizeof(char));
-    //printf("%li\n",sizeof(resposta));
-        if (resposta == NULL){
-            perror("erro ao receber diretorio do executavel");
-            exit(1);
-        }    
-    return;
+    if (resposta == NULL){
+        perror("erro ao receber diretorio do executavel");
+        exit(1);
+    }    
 }
 
-
-// Comando cd - server side
-// Executa change directory no server
-void comando_cd(kermitHuman *package, int *seq, int soquete){
+void cd_server(Pacote_legivel *pacote, uint *seq, int soquete){
 
     char buffer[500] = "";
-    for (int i = 0; i < package->tam; i++){
-        buffer[i] = package->data[i];
+    for (int i = 0; i < pacote->tam; i++){
+        buffer[i] = pacote->data[i];
     }
-    int contador = package->tam;
-    //printf("contador = %i\n",contador );
-    sendACK(package->orig, package->dest, seq, soquete);
-    while( !ehPack(package, EOT)){
-        resetPackage(package);
-        if( receivePackage(package, 2, soquete) < 0 )
+    int contador = pacote->tam;
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
+    while( !pacote_tipo(pacote, EOT)){
+        resetpacote(pacote);
+        if( recebepacote(pacote, 2, soquete) < 0 )
             exit(-1);
 
-        for (int i = 0; i < package->tam; i++){
-            buffer[contador+i] = package->data[i];
+        for (int i = 0; i < pacote->tam; i++){
+            buffer[contador+i] = pacote->data[i];
         }
-        contador += package->tam;
-        //printf("contador = %i\n",contador );
-        sendACK(package->orig, package->dest, seq, soquete);
+        contador += pacote->tam;
+        enviaACK(pacote->origem, pacote->destino, seq, soquete);
     }    
-    //printf("diretorio a ser trocado %s >\n",buffer );
 
     if(chdir(buffer)){
-        sendError(package->orig, package->dest, seq, package->tipo, errno, soquete);
+        enviaError(pacote->origem, pacote->destino, seq, CD, errno, soquete);
         printf("erro codigo: %i\n",errno );
         return;
     }
     return;
 }
 
-
-
-// Comando ls - server side
-// Executa ls no server
-void comando_ls(kermitHuman *package, int *seq, int soquete){   
-
-    sendACK(package->orig, package->dest, seq, soquete);
+void ls_server(Pacote_legivel *pacote, uint *seq, int soquete){   
+    
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
     char diretorio[TAM_DIRETORIO];
     pwd(diretorio);
@@ -99,70 +70,41 @@ void comando_ls(kermitHuman *package, int *seq, int soquete){
         contador++;
     }    
     retorno[contador] = '\0';
-    printf("%s",retorno);
+    //printf("%s",retorno);
 
-
-    int tamanho = strlen(retorno);
-    int contmsg = (tamanho/15);
-    int restomsg = tamanho % 15;
-    printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, retorno );
-    for (int i = 0; i < contmsg; ++i){
-        char data[15] = "";
-        for (int j = 0; j < 15; j++){
-            data[j] = retorno[(15*i)+j];
-        }
-        data[15] = '\0';
-        printf("I: %i data:%s\n",i, data);
-        enviarmensagemfacil(soquete,CLIENT,SERVER,15,seq,CONLS,data);
-    }
-    char data[15] = "";
-    for (int j = 0; j < restomsg; j++){
-        data[j] = retorno[15*contmsg+j];
-    }
-    printf("data:%s \n",data);
-    enviarmensagemfacil(soquete,CLIENT,SERVER,restomsg,seq,CONLS,data);
-
-    enviaEOT(CLIENT,SERVER,seq,soquete);
+    enviastringfacil(retorno, CLIENT, SERVER, seq, ARQ, soquete);
 }
 
 
-
-
-
-// Comando ver - server side
-// Mostra o conteúdo do arquivo texto do servidor na tela do cliente
-void comando_ver(kermitHuman *package, int *seq, int soquete){  
-
-    //kermitHuman package;
+void ver_server(Pacote_legivel *pacote, uint *seq, int soquete){  
+    
     FILE *arquivo;
 
     char buffer[500] = "";
-    for (int i = 0; i < package->tam; i++){
-        buffer[i] = package->data[i];
+    for (int i = 0; i < pacote->tam; i++){
+        buffer[i] = pacote->data[i];
     }
-    int contador = package->tam;
+    int contador = pacote->tam;
     //printf("contador = %i\n",contador );
-    sendACK(package->orig, package->dest, seq, soquete);
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    while( !ehPack(package, EOT)){
-        resetPackage(package);
-        if( receivePackage(package, 2, soquete) < 0 )
+    while( !pacote_tipo(pacote, EOT)){
+        resetpacote(pacote);
+        if( recebepacote(pacote, 2, soquete) < 0 )
             exit(-1);
 
-        for (int i = 0; i < package->tam; i++){
-            buffer[contador+i] = package->data[i];
+        for (int i = 0; i < pacote->tam; i++){
+            buffer[contador+i] = pacote->data[i];
         }
-        contador += package->tam;
-        //printf("contador = %i\n",contador );
-        sendACK(package->orig, package->dest, seq, soquete);
+        contador += pacote->tam;
+        enviaACK(pacote->origem, pacote->destino, seq, soquete);
     }    
-    //printf("diretorio a ser trocado %s >\n",buffer );
 
-    printf("[%s]\n", buffer );
-    // abre <ARQUIVO> no servidor
+    //printf("[%s]\n", buffer );
+
     arquivo = fopen(buffer, "r");
     if (arquivo == NULL){
-        sendError(package->orig, package->dest, seq, package->tipo, errno, soquete);
+        enviaError(pacote->origem, pacote->destino, seq, VER, errno, soquete);
         return;
     }
 
@@ -176,30 +118,7 @@ void comando_ver(kermitHuman *package, int *seq, int soquete){
     retorno[i+1] = '\0';
 
     fclose(arquivo);
-    //printf("%s",resposta);
-
-    int tamanho = strlen(retorno);
-    int contmsg = (tamanho/15);
-    int restomsg = tamanho % 15;
-    printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, retorno );
-    for (int i = 0; i < contmsg; ++i){
-        char data[15] = "";
-        for (int j = 0; j < 15; j++){
-            data[j] = retorno[(15*i)+j];
-        }
-        data[15] = '\0';
-        printf("I: %i data:%s\n",i, data);
-        enviarmensagemfacil(soquete,CLIENT,SERVER,15,seq,ARQ,data);
-    }
-    char data[15] = "";
-    for (int j = 0; j < restomsg; j++){
-        data[j] = retorno[15*contmsg+j];
-    }
-    printf("data:%s \n",data);
-    enviarmensagemfacil(soquete,CLIENT,SERVER,restomsg,seq,ARQ,data);
-
-    enviaEOT(CLIENT,SERVER,seq,soquete);
-
+    enviastringfacil(retorno, CLIENT, SERVER, seq, ARQ, soquete);
 }
 
 
@@ -207,46 +126,46 @@ void comando_ver(kermitHuman *package, int *seq, int soquete){
 
 // Comando linha - server side
 // Mostra a linha <numero_linha> do arquivo <nome_arq> que esta no servidor na tela do cliente.
-void comando_linhas(kermitHuman *package, int *seq, int soquete){
+void linhas_server(Pacote_legivel *pacote, uint *seq, int soquete){
+    
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    sendACK(package->orig, package->dest, seq, soquete);
-
-    resetPackage(package);
-    if( receivePackage(package, 2, soquete) < 0 )
+    resetpacote(pacote);
+    if( recebepacote(pacote, 2, soquete) < 0 )
         exit(-1);
 
     FILE *arquivo;  
     unsigned int linha_inicio = 0;
     unsigned int linha_fim = 0;
     for (int i = 0; i < 4; i++){
-        linha_inicio += (unsigned int) (package->data[i] << (8*(3-i)));
-        linha_fim += (unsigned int) (package->data[i+5] << (8*(3-i)));
+        linha_inicio += (unsigned int) (pacote->data[i] << (8*(3-i)));
+        linha_fim += (unsigned int) (pacote->data[i+5] << (8*(3-i)));
     }
 
-    sendACK(package->orig, package->dest, seq, soquete);
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    resetPackage(package);
-    if( receivePackage(package, 2, soquete) < 0 )
+    resetpacote(pacote);
+    if( recebepacote(pacote, 2, soquete) < 0 )
         exit(-1);
     char buffer[500] = "";
-    for (int i = 0; i < package->tam; i++){
-        buffer[i] = package->data[i];
+    for (int i = 0; i < pacote->tam; i++){
+        buffer[i] = pacote->data[i];
     }
-    int contador = package->tam;
+    int contador = pacote->tam;
     //printf("contador = %i\n",contador );
-    sendACK(package->orig, package->dest, seq, soquete);
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    while( !ehPack(package, EOT)){
-        resetPackage(package);
-        if( receivePackage(package, 2, soquete) < 0 )
+    while( !pacote_tipo(pacote, EOT)){
+        resetpacote(pacote);
+        if( recebepacote(pacote, 2, soquete) < 0 )
             exit(-1);
 
-        for (int i = 0; i < package->tam; i++){
-            buffer[contador+i] = package->data[i];
+        for (int i = 0; i < pacote->tam; i++){
+            buffer[contador+i] = pacote->data[i];
         }
-        contador += package->tam;
+        contador += pacote->tam;
         //printf("contador = %i\n",contador );
-        sendACK(package->orig, package->dest, seq, soquete);
+        enviaACK(pacote->origem, pacote->destino, seq, soquete);
     }    
     printf("diretorio a ser trocado %s >\n",buffer );
 
@@ -254,7 +173,7 @@ void comando_linhas(kermitHuman *package, int *seq, int soquete){
     // abre <ARQUIVO> no servidor
     arquivo = fopen(buffer, "r");
     if (arquivo == NULL){
-        sendError(package->orig, package->dest, seq, package->tipo, errno, soquete);
+        enviaError(pacote->origem, pacote->destino, seq, LINHAS, errno, soquete);
         return;
     }
 
@@ -291,84 +210,57 @@ void comando_linhas(kermitHuman *package, int *seq, int soquete){
 
     printf("%s",resposta_buffer);
 
-    //controle de linhas 
-
-    fclose(arquivo);
-
-    int tamanho = strlen(resposta_buffer);
-    int contmsg = (tamanho/15);
-    int restomsg = tamanho % 15;
-    printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, resposta_buffer );
-    for (int i = 0; i < contmsg; ++i){
-        char data[15] = "";
-        for (int j = 0; j < 15; j++){
-            data[j] = resposta_buffer[(15*i)+j];
-        }
-        data[15] = '\0';
-        printf("I: %i data:%s\n",i, data);
-        enviarmensagemfacil(soquete,CLIENT,SERVER,15,seq,ARQ,data);
+     fclose(arquivo);
+    if (linha_inicio > controle_linhas || linha_fim > controle_linhas || linha_inicio == 0){
+        enviaError(pacote->origem, pacote->destino, seq, LINHAS, 4, soquete);
+        return;
     }
-    char data[15] = "";
-    for (int j = 0; j < restomsg; j++){
-        data[j] = resposta_buffer[15*contmsg+j];
-    }
-    printf("data:%s \n",data);
-    enviarmensagemfacil(soquete,CLIENT,SERVER,restomsg,seq,ARQ,data);
-
-    enviaEOT(CLIENT,SERVER,seq,soquete);
-
-    incrementaSeq(seq);
-
-    // Libera memória
-    //resetPackage(&packageSend);
-    //resetPackage(&packageRec);
+    enviastringfacil(resposta_buffer, CLIENT, SERVER, seq, ARQ, soquete);
 }
-
-
 
 
 // Comando linha - server side
 // Mostra a linha <numero_linha> do arquivo <nome_arq> que esta no servidor na tela do cliente.
-void comando_linha(kermitHuman *package, int *seq, int soquete){
+void linha_server(Pacote_legivel *pacote, uint *seq, int soquete){
+    
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    sendACK(package->orig, package->dest, seq, soquete);
-
-    resetPackage(package);
-    if( receivePackage(package, 2, soquete) < 0 )
+    resetpacote(pacote);
+    if( recebepacote(pacote, 2, soquete) < 0 )
         exit(-1);
 
     FILE *arquivo;  
     unsigned int linha_inicio = 0;
     unsigned int linha_fim = 0;
     for (int i = 0; i < 4; i++){
-        linha_inicio += (unsigned int) (package->data[i] << (8*(3-i)));
-        linha_fim += (unsigned int) (package->data[i+5] << (8*(3-i)));
+        linha_inicio += (unsigned int) (pacote->data[i] << (8*(3-i)));
+        linha_fim += (unsigned int) (pacote->data[i+5] << (8*(3-i)));
     }
 
-    sendACK(package->orig, package->dest, seq, soquete);
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    resetPackage(package);
-    if( receivePackage(package, 2, soquete) < 0 )
+    resetpacote(pacote);
+    if( recebepacote(pacote, 2, soquete) < 0 )
         exit(-1);
     char buffer[500] = "";
-    for (int i = 0; i < package->tam; i++){
-        buffer[i] = package->data[i];
+    for (int i = 0; i < pacote->tam; i++){
+        buffer[i] = pacote->data[i];
     }
-    int contador = package->tam;
+    int contador = pacote->tam;
     //printf("contador = %i\n",contador );
-    sendACK(package->orig, package->dest, seq, soquete);
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    while( !ehPack(package, EOT)){
-        resetPackage(package);
-        if( receivePackage(package, 2, soquete) < 0 )
+    while( !pacote_tipo(pacote, EOT)){
+        resetpacote(pacote);
+        if( recebepacote(pacote, 2, soquete) < 0 )
             exit(-1);
 
-        for (int i = 0; i < package->tam; i++){
-            buffer[contador+i] = package->data[i];
+        for (int i = 0; i < pacote->tam; i++){
+            buffer[contador+i] = pacote->data[i];
         }
-        contador += package->tam;
+        contador += pacote->tam;
         //printf("contador = %i\n",contador );
-        sendACK(package->orig, package->dest, seq, soquete);
+        enviaACK(pacote->origem, pacote->destino, seq, soquete);
     }    
     printf("diretorio a ser trocado %s >\n",buffer );
 
@@ -376,7 +268,7 @@ void comando_linha(kermitHuman *package, int *seq, int soquete){
     // abre <ARQUIVO> no servidor
     arquivo = fopen(buffer, "r");
     if (arquivo == NULL){
-        sendError(package->orig, package->dest, seq, package->tipo, errno, soquete);
+        enviaError(pacote->origem, pacote->destino, seq, LINHA, errno, soquete);
         return;
     }
 
@@ -413,94 +305,73 @@ void comando_linha(kermitHuman *package, int *seq, int soquete){
 
     printf("%s",resposta_buffer);
 
+      fclose(arquivo);
     //controle de linhas 
-
-    fclose(arquivo);
-
-    int tamanho = strlen(resposta_buffer);
-    int contmsg = (tamanho/15);
-    int restomsg = tamanho % 15;
-    printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, resposta_buffer );
-    for (int i = 0; i < contmsg; ++i){
-        char data[15] = "";
-        for (int j = 0; j < 15; j++){
-            data[j] = resposta_buffer[(15*i)+j];
-        }
-        data[15] = '\0';
-        printf("I: %i data:%s\n",i, data);
-        enviarmensagemfacil(soquete,CLIENT,SERVER,15,seq,ARQ,data);
+    if (linha_inicio > controle_linhas || linha_fim > controle_linhas || linha_inicio == 0){
+        enviaError(pacote->origem, pacote->destino, seq, LINHA, 4, soquete);
+        return;
     }
-    char data[15] = "";
-    for (int j = 0; j < restomsg; j++){
-        data[j] = resposta_buffer[15*contmsg+j];
-    }
-    printf("data:%s \n",data);
-    enviarmensagemfacil(soquete,CLIENT,SERVER,restomsg,seq,ARQ,data);
-
-    enviaEOT(CLIENT,SERVER,seq,soquete);
-
-    incrementaSeq(seq);
-
+    enviastringfacil(resposta_buffer, CLIENT, SERVER, seq, ARQ, soquete);    
 }
 
+void edit_server(Pacote_legivel *pacote, uint *seq, int soquete){
+    
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-
-
-// Comando edit - server side
-// troca a linha <numero_linha> do arquivo <nome_arq>, que está no servidor, pelo texto <NOVO_TEXTO> que deve ser digitado entre aspas.
-void comando_edit(kermitHuman *package, int *seq, int soquete){
-
-    sendACK(package->orig, package->dest, seq, soquete);
-
-    resetPackage(package);
-    if( receivePackage(package, 2, soquete) < 0 )
+    resetpacote(pacote);
+    if( recebepacote(pacote, 2, soquete) < 0 )
         exit(-1);
 
     FILE *arquivo;  
     unsigned int linha_inicio = 0;
     unsigned int linha_fim = 0;
     for (int i = 0; i < 4; i++){
-        linha_inicio += (unsigned int) (package->data[i] << (8*(3-i)));
-        linha_fim += (unsigned int) (package->data[i+5] << (8*(3-i)));
+        linha_inicio += (unsigned int) (pacote->data[i] << (8*(3-i)));
+        linha_fim += (unsigned int) (pacote->data[i+5] << (8*(3-i)));
     }
 
-    sendACK(package->orig, package->dest, seq, soquete);
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    resetPackage(package);
-    if( receivePackage(package, 2, soquete) < 0 )
+    resetpacote(pacote);
+    if( recebepacote(pacote, 2, soquete) < 0 )
         exit(-1);
     char buffer[500] = "";
     char imput[500] = "";
     char content[500] = "";
-    for (int i = 0; i < package->tam; i++){
-        buffer[i] = package->data[i];
+    for (int i = 0; i < pacote->tam; i++){
+        buffer[i] = pacote->data[i];
     }
-    int contador = package->tam;
+    int contador = pacote->tam;
     //printf("contador = %i\n",contador );
-    sendACK(package->orig, package->dest, seq, soquete);
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
 
-    while( !ehPack(package, EOT)){
-        resetPackage(package);
-        if( receivePackage(package, 2, soquete) < 0 )
+    while( !pacote_tipo(pacote, EOT)){
+        resetpacote(pacote);
+        if( recebepacote(pacote, 2, soquete) < 0 )
             exit(-1);
 
-        for (int i = 0; i < package->tam; i++){
-            buffer[contador+i] = package->data[i];
+        for (int i = 0; i < pacote->tam; i++){
+            buffer[contador+i] = pacote->data[i];
         }
-        contador += package->tam;
+        contador += pacote->tam;
         //printf("contador = %i\n",contador );
-        sendACK(package->orig, package->dest, seq, soquete);
+        enviaACK(pacote->origem, pacote->destino, seq, soquete);
     }    
     printf("diretorio a ser trocado %s >\n",buffer );
 
     //scanf("%[^\n]",imput);
-    char c;
     int l = 0;
+    int g = 0;
     while(buffer[l] != '\"'){
-        imput[l] = buffer[l];
+        if(buffer[l] != ' '){
+            imput[g] = buffer[l];
+            g++;
+        }
         l++;
     }
     l++;
+    imput[g] = '\0';
+    //printf("%s\n",imput);
     int k = 0;
     while(buffer[l] != '\"'){
         content[k] = buffer[l];
@@ -508,12 +379,13 @@ void comando_edit(kermitHuman *package, int *seq, int soquete){
         k++;
     }
     content[k] = '\n';
+    content[k+1] ='\0';
     printf("[%s] %s\n", imput, content );
     // abre <ARQUIVO> no servidor
 
-    arquivo = fopen("teste", "r");
+    arquivo = fopen(imput, "r+");
     if (arquivo == NULL){
-        sendError(package->orig, package->dest, seq, package->tipo, errno, soquete);
+        enviaError(pacote->origem, pacote->destino, seq, EDIT, errno, soquete);
         return;
     }
     
@@ -524,33 +396,107 @@ void comando_edit(kermitHuman *package, int *seq, int soquete){
         linhas[i] = malloc(size * sizeof(char));
     }
 
-    size_t tamline;
     int i = 1; 
-    while (getline(&linhas[i], &size, arquivo) != -1){
-        printf("%s", linhas[i]);
+    while (getline(&linhas[i], &size, arquivo) >= 0){
+        printf("[%i]%s",i,linhas[i]);
         i++;
     }
+
+    if (linha_inicio > i || linha_fim > i || linha_inicio == 0){
+        enviaError(pacote->origem, pacote->destino, seq, EDIT, 4, soquete);
+        return;
+    }
+
+    printf("NUMERO DE LINHAS: [%i]",i);
     printf("iniciar substituição\n");
     printf("pelo amor de deus [%lu] %s",strlen(content),linhas[linha_inicio]);
     if(linha_inicio < i){
-        free (linhas[linha_inicio]);
-        linhas[linha_inicio] = malloc((strlen(content)+2) * sizeof(char));
+        free(linhas[linha_inicio]);
+        linhas[linha_inicio] = malloc(strlen((content)+2) * sizeof(char));
         if (linhas[linha_inicio] == NULL){
-            sendError(package->orig, package->dest, seq, package->tipo, 1 /*errno*/, soquete);
+            enviaError(pacote->origem, pacote->destino, seq, EDIT, errno, soquete);
             return;
         }
         strcpy(linhas[linha_inicio], content);
     }
     else if(linha_inicio == i){
-        linhas[linha_inicio] = malloc((strlen(content)+2) * sizeof(char));
+        linhas[linha_inicio] = realloc(linhas[linha_inicio], strlen((content)+2) * sizeof(char));
         if (linhas[linha_inicio] == NULL){
-            sendError(package->orig, package->dest, seq, package->tipo, 1 /*errno*/, soquete);
+            enviaError(pacote->origem, pacote->destino, seq, EDIT, errno, soquete);
             return;
         }
         strcpy(linhas[linha_inicio], content);
+        i++;
     }
+
+    rewind(arquivo);
     printf("pelo amor de deus [%lu] %s",strlen(content),linhas[linha_inicio]);
-    for (int k = 0; k <= i; k++){
-        printf("%s", linhas[k]);
+    for (int k = 1; k < i; k++){
+        fprintf(arquivo,"%s", linhas[k]);
     }
+
+    fclose(arquivo);
+
+    for (int k = 0; k < 1000; k++){
+        free(linhas[k]);
+    }    
+    free(linhas);
+
+}            
+
+
+void compila_server(Pacote_legivel *pacote, uint *seq, int soquete){
+    
+    char buffer[500] = "";
+    for (int i = 0; i < pacote->tam; i++){
+        buffer[i] = pacote->data[i];
+    }
+    int contador = pacote->tam;
+    printf("contador = %i\n",contador );
+    enviaACK(pacote->origem, pacote->destino, seq, soquete);
+    while(!pacote_tipo(pacote, EOT)){
+        resetpacote(pacote);
+        if(recebepacote(pacote, 2, soquete) < 0)
+            exit(-1);
+
+        for (int i = 0; i < pacote->tam; i++){
+            buffer[contador+i] = pacote->data[i];
+        }
+        contador += pacote->tam;
+        printf("contador = %i\n",contador );
+        enviaACK(pacote->origem, pacote->destino, seq, soquete);
+    }
+
+    printf("qqr coisa so pra testar\n");    
+    printf("%s\n",buffer);
+    fflush(stdout);
+
+    char buffer2[550] = "";
+    sprintf(buffer2,"gcc %s 2> saidacompilador.txt\n",buffer);
+
+    printf("%s",buffer2);
+
+    system(buffer2);
+    //system("chmod 777 saidacompilador.txt");
+    fflush(stdout);
+
+    FILE* arquivo;
+    arquivo = fopen("saidacompilador.txt", "r");
+    if (arquivo == NULL){
+        enviaError(pacote->origem, pacote->destino, seq, COMPILAR, errno, soquete);
+        return;
+    }
+
+    char retorno[10000] = "";
+    int i = 0;
+    char c;
+    while ((c = fgetc(arquivo)) != EOF){
+        retorno[i] = (char) c;
+        i++;
+    }
+    retorno[i+1] = '\0';
+
+    fclose(arquivo);
+    //system("rm saidacompilador.txt");
+    enviastringfacil(retorno, CLIENT, SERVER, seq, ARQ, soquete);
 }
