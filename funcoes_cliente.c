@@ -6,24 +6,8 @@
 #include <dirent.h>         
 #include <unistd.h>          
 #include "ConexaoRawSocket.h"
-#include "kermitProtocol.h"
+#include "protocolo.h"
 #include "funcoes_cliente.h"
-
-#define CD 0
-#define LS 1
-#define	VER 2
-#define LINHA 3
-#define LINHAS 4
-#define EDIT 5
-#define COMPILAR 6
-#define ACK 8
-#define NACK 9 
-#define LIN 10
-#define	CONLS 11
-#define ARQ 12
-#define EOT 13
-#define ERRO 15
-#define TAM_DIRETORIO 150
 
 
 void pwd(char* resposta){
@@ -64,169 +48,120 @@ void lls(){
     printf("\n");
 }
 
-void cd(int *seq, int soquete){
+void cd(uint *seq, int soquete){
 	char buffer[500];
 	scanf("%s",buffer);
-	int tamanho = strlen(buffer);
-	int contmsg = (tamanho/15);
-	int restomsg = tamanho % 15;
-	//printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, buffer );
-	for (int i = 0; i < contmsg; i++){
-		char data[15] = "";
-		for (int j = 0; j < 15; j++){
-			data[j] = buffer[(15*i)+j];
-		}
-		data[15] = '\0';
-		printf("I: %i data:%s\n",i, data);
-		enviarmensagemfacil(soquete,SERVER,CLIENT,15,seq,CD,data);
-	}
-	char data[15] = "";
-	for (int j = 0; j < restomsg; j++){
-		data[j] = buffer[15*contmsg+j];
-	}
-	printf("data:%s \n",data);
-	enviarmensagemfacil(soquete, SERVER,CLIENT,restomsg,seq,CD,data);
 
-	enviaEOT(SERVER,CLIENT,seq,soquete);
+	enviastringfacil(buffer, SERVER, CLIENT, seq, CD, soquete);
 
-	kermitHuman package;
-	iniciaPackage(&package);
-	if(receivePackage(&package,CLIENT, soquete) < 0){
+	Pacote_legivel pacote;
+	iniciapacote(&pacote);
+	if(recebepacote(&pacote,CLIENT, soquete) < 0){
 		exit(-1);
 	}		
-    if(ehPack(&package, ERROR)){
-		printError(&package);
+    if(pacote_tipo(&pacote, ERRO)){
+		printError(&pacote);
 		incrementaSeq(seq);
     }
-	resetPackage(&package);
+	resetpacote(&pacote);
 
 }
 
 
-void ls(int *seq, int soquete){
+void ls(uint *seq, int soquete){
 
-	enviarmensagemfacil(soquete,SERVER,CLIENT,0,seq,LS,NULL);
-	kermitHuman package;
-	iniciaPackage(&package);
+	enviarmensagemfacil(SERVER,CLIENT,0,seq,LS,NULL,soquete);
+	Pacote_legivel pacote;
+	iniciapacote(&pacote);
 
-	if( receivePackage(&package, CLIENT, soquete) < 0 )
+	if( recebepacote(&pacote, CLIENT, soquete) < 0 )
             exit(-1);
 
 	char buffer[2000] = "";
-    for (int i = 0; i < package.tam; i++){
-        buffer[i] = package.data[i];
+    for (int i = 0; i < pacote.tam; i++){
+        buffer[i] = pacote.data[i];
     }
-    int contador = package.tam;
+    int contador = pacote.tam;
     //printf("contador = %i\n",contador );
-    sendACK(package.orig, package.dest, seq, soquete);
-    while( !ehPack(&package, EOT)){
-        resetPackage(&package);
-        if( receivePackage(&package, CLIENT, soquete) < 0 )
+    enviaACK(pacote.origem, pacote.destino, seq, soquete);
+    while( !pacote_tipo(&pacote, EOT)){
+        resetpacote(&pacote);
+        if( recebepacote(&pacote, CLIENT, soquete) < 0 )
             exit(-1);
 
-        for (int i = 0; i < package.tam; i++){
-            buffer[contador+i] = package.data[i];
+        for (int i = 0; i < pacote.tam; i++){
+            buffer[contador+i] = pacote.data[i];
         }
-        contador += package.tam;
+        contador += pacote.tam;
         //printf("contador = %i\n",contador );
-        sendACK(package.orig, package.dest, seq, soquete);
+        enviaACK(pacote.origem, pacote.destino, seq, soquete);
     }    
-    int coisa = strlen(buffer);
-    printf("%i\n",coisa);
     printf("%s",buffer);
 
-    resetPackage(&package);
-
+    resetpacote(&pacote);
+    printf("%d\n",*seq);
 }
 
 
 
-void ver(int *seq, int soquete){
+void ver(uint *seq, int soquete){
 
 	char buffer[500];
 	scanf("%s",buffer);
-	int tamanho = strlen(buffer);
-	int contmsg = (tamanho/15);
-	int restomsg = tamanho % 15;
-	//printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, buffer );
-	for (int i = 0; i < contmsg; i++){
-		char data[15] = "";
-		for (int j = 0; j < 15; j++){
-			data[j] = buffer[(15*i)+j];
-		}
-		data[15] = '\0';
-		printf("I: %i data:%s\n",i, data);
-		enviarmensagemfacil(soquete,SERVER,CLIENT,15,seq,VER,data);
-	}
-	char data[15] = "";
-	for (int j = 0; j < restomsg; j++){
-		data[j] = buffer[15*contmsg+j];
-	}
-	printf("data:%s \n",data);
-	enviarmensagemfacil(soquete,SERVER,CLIENT,restomsg,seq,VER,data);
 
-	enviaEOT(SERVER,CLIENT,seq,soquete);
+	enviastringfacil(buffer, SERVER, CLIENT, seq, VER, soquete);
 
-	kermitHuman package;
-	iniciaPackage(&package);
-	if(receivePackage(&package,CLIENT, soquete) < 0){
+	Pacote_legivel pacote;
+	iniciapacote(&pacote);
+	if(recebepacote(&pacote,CLIENT, soquete) < 0){
 		exit(-1);
 	}		
-    if(ehPack(&package, ERROR)){
-		printError(&package);
+    if(pacote_tipo(&pacote, ERRO)){
+		printError(&pacote);
 		incrementaSeq(seq);
     }
 	else{
 		char buffer2[2000] = "";
-	    for (int i = 0; i < package.tam; i++){
-	        buffer2[i] = package.data[i];
+	    for (int i = 0; i < pacote.tam; i++){
+	        buffer2[i] = pacote.data[i];
 	    }
-	    int contador = package.tam;
+	    int contador = pacote.tam;
 	    //printf("contador = %i\n",contador );
-	    sendACK(package.orig, package.dest, seq, soquete);
-	    while( !ehPack(&package, EOT)){
-	        resetPackage(&package);
-	        if( receivePackage(&package, CLIENT, soquete) < 0 )
+	    enviaACK(pacote.origem, pacote.destino, seq, soquete);
+	    while( !pacote_tipo(&pacote, EOT)){
+	        resetpacote(&pacote);
+	        if( recebepacote(&pacote, CLIENT, soquete) < 0 )
 	            exit(-1);
 
-	        for (int i = 0; i < package.tam; i++){
-	            buffer2[contador+i] = package.data[i];
+	        for (int i = 0; i < pacote.tam; i++){
+	            buffer2[contador+i] = pacote.data[i];
 	        }
-	        contador += package.tam;
+	        contador += pacote.tam;
 	        //printf("contador = %i\n",contador );
-	        sendACK(package.orig, package.dest, seq, soquete);
+	        enviaACK(pacote.origem, pacote.destino, seq, soquete);
 	    }    
-	    int coisa = strlen(buffer2);
-	    printf("%i\n",coisa);
-	    printf("%s",buffer2);
+	    printf("%s\n",buffer2);
 	}
-	resetPackage(&package);
+	resetpacote(&pacote);
 }
 
-void linhas(int *seq, int soquete){
+void linhas(uint *seq, int soquete){
 
-	enviarmensagemfacil(soquete,SERVER,CLIENT,0,seq,LINHAS,NULL);
+	enviarmensagemfacil(SERVER,CLIENT,0,seq,LINHAS,NULL,soquete);
 
 	char buffer[500];
 	unsigned int linhas_inicio, linhas_fim;
 	scanf("%u %u",&linhas_inicio,&linhas_fim);
-	scanf("%s",buffer);
-	int tamanho = strlen(buffer);
-	int contmsg = (tamanho/15);
-	int restomsg = tamanho % 15;
-
+	
+	
 	unsigned char buffer_linhas[9];
 	for (int i = 0; i < 4; i++){
 		buffer_linhas[3-i] = linhas_inicio >> (8*i);
 		buffer_linhas[8-i] = linhas_fim >> (8*i);
-		printf("%x, %x\n",buffer_linhas[3-i],buffer_linhas[8-i]);
+		//printf("%x, %x\n",buffer_linhas[3-i],buffer_linhas[8-i]);
 	}
 	buffer_linhas[4] = ' ';
 	buffer_linhas[9] = '\0';
-
-	for (int i = 0; i < 9; i++){
-		printf("%x",buffer_linhas[i]);
-	}
 
 	unsigned int linha_inicio = 0;
     unsigned int linha_fim = 0;
@@ -235,90 +170,67 @@ void linhas(int *seq, int soquete){
 		linha_fim += (unsigned int) (buffer_linhas[i+5] << (8*(3-i)));
 	}
    
-	enviarmensagemfacil(soquete,SERVER,CLIENT,9,seq,LIN,buffer_linhas);
+	enviarmensagemfacil(SERVER,CLIENT,9,seq,LIN,(char*) buffer_linhas,soquete);
 	//printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, buffer );
-	for (int i = 0; i < contmsg; i++){
-		char data[15] = "";
-		for (int j = 0; j < 15; j++){
-			data[j] = buffer[(15*i)+j];
-		}
-		data[15] = '\0';
-		printf("I: %i data:%s\n",i, data);
-		enviarmensagemfacil(soquete,SERVER,CLIENT,15,seq,LINHAS,data);
-	}
-	char data[15] = "";
-	for (int j = 0; j < restomsg; j++){
-		data[j] = buffer[15*contmsg+j];
-	}
-	printf("data:%s \n",data);
-	enviarmensagemfacil(soquete,SERVER,CLIENT,restomsg,seq,LINHAS,data);
+	scanf("%s",buffer);
 
-	enviaEOT(SERVER,CLIENT,seq,soquete);
+	enviastringfacil(buffer, SERVER, CLIENT, seq, LINHAS, soquete);
 
-	kermitHuman package;
-	iniciaPackage(&package);
-	if(receivePackage(&package,CLIENT, soquete) < 0){
+	Pacote_legivel pacote;
+	iniciapacote(&pacote);
+	if(recebepacote(&pacote,CLIENT, soquete) < 0){
 		exit(-1);
 	}		
-    if(ehPack(&package, ERROR)){
-		printError(&package);
+    if(pacote_tipo(&pacote, ERRO)){
+		printError(&pacote);
 		incrementaSeq(seq);
     }
 	else{
 		char buffer2[2000] = "";
-	    for (int i = 0; i < package.tam; i++){
-	        buffer2[i] = package.data[i];
+	    for (int i = 0; i < pacote.tam; i++){
+	        buffer2[i] = pacote.data[i];
 	    }
-	    int contador = package.tam;
+	    int contador = pacote.tam;
 	    //printf("contador = %i\n",contador );
-	    sendACK(package.orig, package.dest, seq, soquete);
-	    while( !ehPack(&package, EOT)){
-	        resetPackage(&package);
-	        if( receivePackage(&package, CLIENT, soquete) < 0 )
+	    enviaACK(pacote.origem, pacote.destino, seq, soquete);
+	    while( !pacote_tipo(&pacote, EOT)){
+	        resetpacote(&pacote);
+	        if( recebepacote(&pacote, CLIENT, soquete) < 0 )
 	            exit(-1);
 
-	        for (int i = 0; i < package.tam; i++){
-	            buffer2[contador+i] = package.data[i];
+	        for (int i = 0; i < pacote.tam; i++){
+	            buffer2[contador+i] = pacote.data[i];
 	        }
-	        contador += package.tam;
+	        contador += pacote.tam;
 	        //printf("contador = %i\n",contador );
-	        sendACK(package.orig, package.dest, seq, soquete);
+	        enviaACK(pacote.origem, pacote.destino, seq, soquete);
 	    }    
-	    int coisa = strlen(buffer2);
-	    printf("%i\n",coisa);
 	    printf("%s",buffer2);
 	}
-	resetPackage(&package);
+	resetpacote(&pacote);
 
 
 }	
 
 
-void linha(int *seq, int soquete){
+void linha(uint *seq, int soquete){
 
-	enviarmensagemfacil(soquete,SERVER,CLIENT,0,seq,LINHA,NULL);
+	enviarmensagemfacil(SERVER,CLIENT,0,seq,LINHA,NULL,soquete);
 
 	char buffer[500];
 	unsigned int linhas_inicio, linhas_fim;
+
 	scanf("%u",&linhas_inicio);
 	linhas_fim = linhas_inicio;
-	scanf("%s",buffer);
-	int tamanho = strlen(buffer);
-	int contmsg = (tamanho/15);
-	int restomsg = tamanho % 15;
-
+	
 	unsigned char buffer_linhas[9];
 	for (int i = 0; i < 4; i++){
 		buffer_linhas[3-i] = linhas_inicio >> (8*i);
 		buffer_linhas[8-i] = linhas_fim >> (8*i);
-		printf("%x, %x\n",buffer_linhas[3-i],buffer_linhas[8-i]);
+		//printf("%x, %x\n",buffer_linhas[3-i],buffer_linhas[8-i]);
 	}
 	buffer_linhas[4] = ' ';
 	buffer_linhas[9] = '\0';
-
-	for (int i = 0; i < 9; i++){
-		printf("%x",buffer_linhas[i]);
-	}
 
 	unsigned int linha_inicio = 0;
     unsigned int linha_fim = 0;
@@ -327,72 +239,54 @@ void linha(int *seq, int soquete){
 		linha_fim += (unsigned int) (buffer_linhas[i+5] << (8*(3-i)));
 	}
    
-	enviarmensagemfacil(soquete,SERVER,CLIENT,9,seq,LIN,buffer_linhas);
+	enviarmensagemfacil(SERVER,CLIENT,9,seq,LIN,(char*)buffer_linhas,soquete);
 	//printf("%i mensagens // %i resto\n buffer: %s\n", contmsg, restomsg, buffer );
-	for (int i = 0; i < contmsg; i++){
-		char data[15] = "";
-		for (int j = 0; j < 15; j++){
-			data[j] = buffer[(15*i)+j];
-		}
-		data[15] = '\0';
-		printf("I: %i data:%s\n",i, data);
-		enviarmensagemfacil(soquete,SERVER,CLIENT,15,seq,LINHA,data);
-	}
-	char data[15] = "";
-	for (int j = 0; j < restomsg; j++){
-		data[j] = buffer[15*contmsg+j];
-	}
-	printf("data:%s \n",data);
-	enviarmensagemfacil(soquete,SERVER,CLIENT,restomsg,seq,LINHA,data);
+	scanf("%s",buffer);
 
-	enviaEOT(SERVER,CLIENT,seq,soquete);
+	enviastringfacil(buffer, SERVER, CLIENT, seq, LINHA, soquete);
 
-	kermitHuman package;
-	iniciaPackage(&package);
-	if(receivePackage(&package,CLIENT, soquete) < 0){
+	Pacote_legivel pacote;
+	iniciapacote(&pacote);
+	if(recebepacote(&pacote,CLIENT, soquete) < 0){
 		exit(-1);
 	}		
-    if(ehPack(&package, ERROR)){
-		printError(&package);
+    if(pacote_tipo(&pacote, ERRO)){
+		printError(&pacote);
 		incrementaSeq(seq);
     }
 	else{
 		char buffer2[2000] = "";
-	    for (int i = 0; i < package.tam; i++){
-	        buffer2[i] = package.data[i];
+	    for (int i = 0; i < pacote.tam; i++){
+	        buffer2[i] = pacote.data[i];
 	    }
-	    int contador = package.tam;
+	    int contador = pacote.tam;
 	    //printf("contador = %i\n",contador );
-	    sendACK(package.orig, package.dest, seq, soquete);
-	    while( !ehPack(&package, EOT)){
-	        resetPackage(&package);
-	        if( receivePackage(&package,CLIENT, soquete) < 0 )
+	    enviaACK(pacote.origem, pacote.destino, seq, soquete);
+	    while( !pacote_tipo(&pacote, EOT)){
+	        resetpacote(&pacote);
+	        if( recebepacote(&pacote,CLIENT, soquete) < 0 )
 	            exit(-1);
 
-	        for (int i = 0; i < package.tam; i++){
-	            buffer2[contador+i] = package.data[i];
+	        for (int i = 0; i < pacote.tam; i++){
+	            buffer2[contador+i] = pacote.data[i];
 	        }
-	        contador += package.tam;
+	        contador += pacote.tam;
 	        //printf("contador = %i\n",contador );
-	        sendACK(package.orig, package.dest, seq, soquete);
+	        enviaACK(pacote.origem, pacote.destino, seq, soquete);
 	    }    
-	    int coisa = strlen(buffer2);
-	    printf("%i\n",coisa);
 	    printf("%s",buffer2);
 	}
-	resetPackage(&package);
+	resetpacote(&pacote);
 
 
 }	
 
 
-void edit(int *seq, int soquete){
+void edit(uint *seq, int soquete){
 
-	enviarmensagemfacil(soquete,SERVER,CLIENT,0,seq,EDIT,NULL);
+	enviarmensagemfacil(SERVER,CLIENT,0,seq,EDIT,NULL,soquete);
 
 	char buffer[500];
-	char content[500];
-	char imput[500];
 	unsigned int linhas_inicio, linhas_fim;
 	scanf("%u",&linhas_inicio);
 	linhas_fim = linhas_inicio;
@@ -401,50 +295,66 @@ void edit(int *seq, int soquete){
 	for (int i = 0; i < 4; i++){
 		buffer_linhas[3-i] = linhas_inicio >> (8*i);
 		buffer_linhas[8-i] = linhas_fim >> (8*i);
-		printf("%x, %x\n",buffer_linhas[3-i],buffer_linhas[8-i]);
+		//printf("%x, %x\n",buffer_linhas[3-i],buffer_linhas[8-i]);
 	}
 	buffer_linhas[4] = ' ';
 	buffer_linhas[9] = '\0';
 
-	for (int i = 0; i < 9; i++){
-		printf("%x",buffer_linhas[i]);
-	}
-   
-	enviarmensagemfacil(soquete,SERVER,CLIENT,9,seq,LIN,buffer_linhas);
+	enviarmensagemfacil(SERVER,CLIENT,9,seq,LIN,(char*)buffer_linhas,soquete);
 
 	scanf("%[^\n]",buffer);
-	int tamanho = strlen(buffer);
-	int contmsg = (tamanho/15);
-	int restomsg = tamanho % 15;
+	enviastringfacil(buffer, SERVER, CLIENT, seq, EDIT, soquete);
 
-	for (int i = 0; i < contmsg; i++){
-		char data[15] = "";
-		for (int j = 0; j < 15; j++){
-			data[j] = buffer[(15*i)+j];
-		}
-		data[15] = '\0';
-		printf("I: %i data:%s\n",i, data);
-		enviarmensagemfacil(soquete,SERVER,CLIENT,15,seq,LINHA,data);
-	}
-	char data[15] = "";
-	for (int j = 0; j < restomsg; j++){
-		data[j] = buffer[15*contmsg+j];
-	}
-	printf("data:%s \n",data);
-	enviarmensagemfacil(soquete,SERVER,CLIENT,restomsg,seq,LINHA,data);
-
-	enviaEOT(SERVER,CLIENT,seq,soquete);
-
-	kermitHuman package;
-	iniciaPackage(&package);
-	if(receivePackage(&package,CLIENT, soquete) < 0){
+	Pacote_legivel pacote;
+	iniciapacote(&pacote);
+	if(recebepacote(&pacote,CLIENT, soquete) < 0){
 		exit(-1);
 	}		
-    if(ehPack(&package, ERROR)){
-		printError(&package);
+    if(pacote_tipo(&pacote, ERRO)){
+		printError(&pacote);
 		incrementaSeq(seq);
     }
-	resetPackage(&package);
+	resetpacote(&pacote);
 
+}
+
+void compila(uint *seq, int soquete){
+
+	char buffer[500];
+
+	scanf("%[^\n]",buffer);
+	enviastringfacil(buffer, SERVER, CLIENT, seq, COMPILAR, soquete);
+
+	Pacote_legivel pacote;
+	iniciapacote(&pacote);
+	if(recebepacote(&pacote,CLIENT, soquete) < 0){
+		exit(-1);
+	}		
+    if(pacote_tipo(&pacote, ERRO)){
+		printError(&pacote);
+		incrementaSeq(seq);
+    }
+	else{
+		char buffer2[10000] = "";
+	    for (int i = 0; i < pacote.tam; i++){
+	        buffer2[i] = pacote.data[i];
+	    }
+	    int contador = pacote.tam;
+	    enviaACK(pacote.origem, pacote.destino, seq, soquete);
+	    while( !pacote_tipo(&pacote, EOT)){
+	        resetpacote(&pacote);
+	        if( recebepacote(&pacote, CLIENT, soquete) < 0 )
+	            exit(-1);
+
+	        for (int i = 0; i < pacote.tam; i++){
+	            buffer2[contador+i] = pacote.data[i];
+	        }
+	        contador += pacote.tam;
+
+	        enviaACK(pacote.origem, pacote.destino, seq, soquete);
+	    }    
+	    printf("%s",buffer2);
+	}
+	resetpacote(&pacote);
 
 }	
